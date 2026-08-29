@@ -415,6 +415,7 @@ GameInit:
 .clearRAM:	move.l	d7,(a6)+				; clear RAM
 		dbf	d6,.clearRAM				; loop until done
 
+		jsr	(InitDMAQueue).l
 		bsr.w	VDPSetupGame				; initialize (proper) VDP registers
 		bsr.w	DACDriverLoad				; initialize Z80 DAC driver
 		bsr.w	JoypadInit				; initialize controller ports
@@ -830,13 +831,9 @@ VBlank_Levels:
 		move.w	(v_hblank_hreg).w,(a5)			; write HBlank trigger scan line for water palette swap to VDP
 
 		writeVRAM	v_hscrolltablebuffer,vram_hscroll ; transfer H-scroll buffer table to actual H-scroll VRAM
+		jsr	ProcessDMAQueue(pc)
 		writeVRAM	v_spritetablebuffer,vram_sprites  ; transfer sprite buffer table to actual sprites VRAM
-
-		tst.b	(f_sonframechg).w			; has Sonic's sprite changed?
-		beq.s	.nochg					; if not, branch
-		writeVRAM	v_sgfx_buffer,ArtTile_Sonic*tile_size ; load new Sonic gfx
-		move.b	#0,(f_sonframechg).w			; clear Sonic gfx update flag
-	.nochg:
+		jsr	ProcessDMAQueue(pc)
 
 		startZ80					; restart Z80
 
@@ -888,16 +885,14 @@ VBlank_SpecialStage:
 		bsr.w	ReadJoypads				; read joypads and update buffered inputs in RAM
 		writeCRAM	v_palette,0			; write regular palette buffer to CRAM
 		writeVRAM	v_spritetablebuffer,vram_sprites  ; transfer sprite buffer table to actual sprites VRAM
+		jsr	ProcessDMAQueue(pc)
 		writeVRAM	v_hscrolltablebuffer,vram_hscroll ; transfer H-scroll buffer table to actual H-scroll VRAM
+		jsr	ProcessDMAQueue(pc)
 		startZ80					; restart Z80
 
 		bsr.w	PalCycle_SS				; advance special stage palette cycle and animate bird/fish graphics
 
-		tst.b	(f_sonframechg).w			; has Sonic's sprite changed?
-		beq.s	.nochg					; if not, branch
-		writeVRAM	v_sgfx_buffer,ArtTile_Sonic*tile_size ; load new Sonic gfx
-		move.b	#0,(f_sonframechg).w			; clear Sonic gfx update flag
-	.nochg:
+
 
 		tst.w	(v_generictimer).w			; is generic timer set?
 		beq.w	.end					; if not, branch
@@ -928,13 +923,9 @@ VBlank_Ending:
 		move.w	(v_hblank_hreg).w,(a5)			; write HBlank trigger scan line for water palette swap to VDP
 
 		writeVRAM	v_hscrolltablebuffer,vram_hscroll ; transfer H-scroll buffer table to actual H-scroll VRAM
+		jsr	ProcessDMAQueue(pc)
 		writeVRAM	v_spritetablebuffer,vram_sprites  ; transfer sprite buffer table to actual sprites VRAM
-
-		tst.b	(f_sonframechg).w			; has Sonic's sprite changed?
-		beq.s	.nochg					; if not, branch
-		writeVRAM	v_sgfx_buffer,ArtTile_Sonic*tile_size ; load new Sonic gfx
-		move.b	#0,(f_sonframechg).w			; clear Sonic gfx update flag
-	.nochg:
+		jsr	ProcessDMAQueue(pc)
 
 		startZ80					; restart Z80
 
@@ -985,14 +976,12 @@ VBlank_Continue:
 
 		writeCRAM	v_palette,0			; write regular palette buffer to CRAM
 		writeVRAM	v_spritetablebuffer,vram_sprites  ; transfer sprite buffer table to actual sprites VRAM
+		jsr	ProcessDMAQueue(pc)
 		writeVRAM	v_hscrolltablebuffer,vram_hscroll ; transfer H-scroll buffer table to actual H-scroll VRAM
+		jsr	ProcessDMAQueue(pc)
 		startZ80					; restart Z80
 
-		tst.b	(f_sonframechg).w			; has Sonic's sprite changed?
-		beq.s	.nochg					; if not, branch
-		writeVRAM	v_sgfx_buffer,ArtTile_Sonic*tile_size ; load new Sonic gfx
-		move.b	#0,(f_sonframechg).w			; clear Sonic gfx update flag
-	.nochg:
+
 
 		tst.w	(v_generictimer).w			; is generic timer set?
 		beq.w	.end					; if not, branch
@@ -1020,7 +1009,9 @@ VBlank_StandardTransfers:
 	.waterBelow:
 
 		writeVRAM	v_spritetablebuffer,vram_sprites  ; transfer sprite buffer table to actual sprites VRAM
+		jsr	ProcessDMAQueue(pc)
 		writeVRAM	v_hscrolltablebuffer,vram_hscroll ; transfer H-scroll buffer table to actual H-scroll VRAM
+		jsr	ProcessDMAQueue(pc)
 
 		startZ80					; restart Z80
 		rts						; return
@@ -1187,6 +1178,7 @@ VDPSetupArray:
 		dc.w vreg_winypos|0				; window vertical position
 VDPSetupArray_End:
 
+		include	"_inc/DMA-Queue.asm"
 
 ; ===========================================================================
 ; ---------------------------------------------------------------------------
@@ -1215,7 +1207,7 @@ ClearScreen:
 		clearRAM v_spritetablebuffer,v_spritetablebuffer_end+4 ; clear sprite table buffer
 		clearRAM v_hscrolltablebuffer,v_hscrolltablebuffer_end_padded+4 ; clear H-Scroll table buffer
 	endif
-
+		ResetDMAQueue
 		rts						; return
 ; End of function ClearScreen
 
